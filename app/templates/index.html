@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zy 的家</title>
+    <!-- 引入外部CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <!-- 加载提示 -->
+    <div id="loading">
+        <div class="spinner"></div>
+        <p>正在加载VRM模型...</p>
+    </div>
+
+    <!-- 3D渲染容器 -->
+    <div id="canvas-container"></div>
+
+    <!-- 主布局 -->
+    <div class="main-layout">
+        <!-- 顶部栏 - 模型配置 -->
+        <div class="top-bar">
+            <h3>🤖 AI虚拟人 - <span id="virtual-human-name">{{ virtual_human_name }}</span></h3>
+            <div class="model-controls">
+                <div class="control-group">
+                    <span class="control-label">提供商:</span>
+                    <select id="provider-select">
+                        <option value="">选择提供商...</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <span class="control-label">模型:</span>
+                    <select id="model-select">
+                        <option value="">选择模型...</option>
+                    </select>
+                </div>
+                <button onclick="clearHistory()">清空</button>
+            </div>
+        </div>
+
+        <!-- 右侧聊天面板 -->
+        <div class="chat-sidebar" id="chat-sidebar">
+            <div class="chat-header">
+                <div class="chat-title">
+                    <span>💬</span>
+                    <span>与 {{ virtual_human_name }} 聊天</span>
+                </div>
+            </div>
+            
+            <div class="chat-messages" id="chat-messages">
+                <div class="message assistant">
+                    <div>你好！我是{{ virtual_human_name }}，很高兴见到你！有什么想聊的吗？😊</div>
+                    <div class="message-time"></div>
+                </div>
+            </div>
+            
+            <div class="typing-indicator">
+                <div class="typing-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+            
+            <div class="chat-input-area">
+                <form class="chat-input-form" id="chat-input-form">
+                    <input type="text" class="chat-input" id="chat-input" placeholder="输入消息..." autocomplete="off">
+                    <button type="submit" class="send-button" id="send-button">📤</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- 数字人展示区域提示 -->
+        <div class="human-display-hint">
+            🖱️ 拖拽旋转视角 | 🖱️ 滚轮缩放 | R键重置 | A键自动旋转 | 空格键暂停动画
+        </div>
+    </div>
+
+    <!-- 消息提示框容器 -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Three.js 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- GLTFLoader -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- VRM Loader -->
+    <script src="https://unpkg.com/@pixiv/three-vrm@0.6.11/lib/three-vrm.js"></script>
+    
+    <!-- 引入主应用脚本 -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html> 
