@@ -37,13 +37,27 @@ virtual-human/
 ├── app.py                      # Flask应用入口
 ├── requirements.txt            # Python依赖包
 ├── config.env                  # 环境配置文件
-├── README.md                   # 项目文档
+├── README.md                   # 项目文档（已合并数据库说明）
 │
 ├── app/                        # 应用核心模块
 │   ├── __init__.py            # Flask应用初始化
-│   ├── config.py              # 配置管理
-│   ├── models.py              # AI模型接口
-│   ├── routes.py              # 路由处理
+│   ├── app_config.py          # 应用配置管理
+│   │
+│   ├── routes/                # 路由模块
+│   │   ├── __init__.py        # 路由包初始化
+│   │   └── routes.py          # 主要路由处理
+│   │
+│   ├── service/               # 服务层模块
+│   │   └── __init__.py        # 服务包初始化
+│   │
+│   ├── config/                # 配置模块
+│   │   ├── __init__.py        # 配置包初始化
+│   │   └── database.py        # 数据库连接管理
+│   │
+│   ├── models/                # 数据模型
+│   │   ├── __init__.py        # 模型包初始化
+│   │   ├── ai_models.py       # AI模型接口
+│   │   └── chat_models.py     # 聊天数据模型
 │   │
 │   ├── templates/             # HTML模板
 │   │   └── index.html         # 主页面模板
@@ -56,8 +70,8 @@ virtual-human/
 │       └── models/            # VRM模型文件
 │           └── virtual-human.vrm
 │
-└── instance/                   # 实例配置
-    └── config.py              # 本地配置
+└── sql/                        # 数据库脚本
+    └── database_init.sql       # 数据库初始化脚本（已合并）
 ```
 
 ## 🚀 快速开始
@@ -183,6 +197,7 @@ DEEPSEEK_TEMPERATURE=0.7
 - **Flask 2.0+**: 轻量级Web框架
 - **Requests**: HTTP客户端库
 - **Python-dotenv**: 环境变量管理
+- **PyMySQL**: MySQL数据库连接器
 
 ### 前端技术
 - **Three.js r128**: 3D图形渲染引擎
@@ -196,6 +211,11 @@ DEEPSEEK_TEMPERATURE=0.7
 - **Anthropic API**: Claude系列模型接口
 - **DeepSeek API**: DeepSeek系列模型接口
 - **多厂商兼容**: 统一的API调用接口
+
+### 数据库系统
+- **MySQL 8.0+**: 聊天记录持久化存储
+- **连接池管理**: 高效的数据库连接管理
+- **自动归档**: 智能的聊天会话归档机制
 
 ## 🎨 界面展示
 
@@ -372,4 +392,130 @@ ANTHROPIC_TEMPERATURE=0.7
 
 Made with ❤️ by [Your Name]
 
-</div> 
+</div>
+
+## 💾 数据库功能
+
+### 功能概述
+本系统集成了完整的聊天记录数据库持久化功能，支持将聊天会话自动归档到MySQL数据库中，提供完整的对话历史查询和管理功能。
+
+### 数据库设计
+
+#### 表结构说明
+
+**1. 聊天会话表 (chat_sessions)**
+- `session_id`: 会话唯一标识 (UUID)
+- `user_identity`: 用户身份标识
+- `browser_info`: 浏览器信息 (User-Agent)
+- `ip_address`: 用户IP地址
+- `location_info`: 地理位置信息
+- `session_start_time`: 会话开始时间
+- `session_end_time`: 会话结束时间
+- `total_messages`: 总消息数量
+- `ai_provider`: AI提供商
+- `ai_model`: AI模型名称
+- `session_status`: 会话状态 (active/ended/terminated)
+- `end_reason`: 结束原因 (user_clear/browser_refresh/user_goodbye/limit_reached/manual)
+
+**2. 聊天消息表 (chat_messages)**
+- `session_id`: 所属会话ID
+- `message_order`: 消息在会话中的顺序号
+- `sender_type`: 发送方类型 (user/ai)
+- `sender_name`: 发送方名称
+- `message_content`: 消息内容
+- `message_time`: 消息发送时间
+- `ai_provider`: AI提供商 (仅AI消息)
+- `ai_model`: AI模型 (仅AI消息)
+- `response_time_ms`: AI响应时间 (毫秒)
+
+### 数据库配置
+
+#### 环境变量设置
+```env
+# 数据库设置
+DB_HOST=localhost
+DB_PORT=3306
+DB_USERNAME=root
+DB_PASSWORD=your_mysql_password
+DB_NAME=virtual_human_chat
+DB_CHARSET=utf8mb4
+ENABLE_DATABASE_STORAGE=true
+
+# 数据库连接池配置
+DB_POOL_SIZE=5
+DB_POOL_TIMEOUT=30
+DB_POOL_RECYCLE=3600
+```
+
+#### 数据库初始化
+```bash
+# 登录MySQL
+mysql -u root -p
+
+# 执行建表脚本
+source sql/database_init.sql
+```
+
+### 自动归档功能
+
+#### 触发条件
+1. **用户手动清空聊天** - 点击清空按钮
+2. **浏览器刷新** - 检测到页面刷新
+3. **用户表达告别意图** - 检测到"再见"、"拜拜"等关键词
+4. **达到聊天上限** - 消息数达到配置的上限
+
+#### 归档内容
+- 完整的对话历史记录
+- 用户身份和会话信息
+- 浏览器和IP地址信息
+- 会话时间和持续时长
+- AI模型和提供商信息
+- 会话结束原因
+
+### API接口
+
+#### 数据库相关接口
+```http
+# 测试数据库连接
+GET /api/database/test
+
+# 获取用户聊天历史
+GET /api/chat_archive/user/{user_identity}?limit=10
+
+# 获取会话详情
+GET /api/chat_archive/session/{session_id}
+
+# 清空历史（支持结束原因）
+POST /api/clear_history
+{
+    "end_reason": "user_clear"
+}
+```
+
+### 数据查询示例
+
+#### 查询用户聊天历史
+```sql
+SELECT * FROM user_chat_history 
+WHERE user_identity = '用户名' 
+ORDER BY session_start_time DESC;
+```
+
+#### 查询特定会话的完整对话
+```sql
+SELECT 
+    cm.message_order,
+    cm.sender_type,
+    cm.sender_name,
+    cm.message_content,
+    cm.message_time
+FROM chat_messages cm 
+WHERE cm.session_id = 'session-uuid'
+ORDER BY cm.message_order;
+```
+
+#### 查询每日聊天统计
+```sql
+SELECT * FROM chat_statistics 
+ORDER BY chat_date DESC;
+``` 

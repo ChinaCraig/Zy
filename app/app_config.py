@@ -16,7 +16,28 @@ class Config:
         self.personality = os.environ.get('VIRTUAL_HUMAN_PERSONALITY', '友善、聪明、乐于助人的AI助手')
         self.reply_style = os.environ.get('REPLY_STYLE', 'casual')
         self.enable_emotions = os.environ.get('ENABLE_EMOTIONS', 'true').lower() == 'true'
+        self.enable_identity_verification = os.environ.get('ENABLE_IDENTITY_VERIFICATION', 'true').lower() == 'true'
         self.max_history = int(os.environ.get('MAX_CONVERSATION_HISTORY', '50'))
+        self.chat_storage_limit = int(os.environ.get('CHAT_STORAGE_LIMIT', '100'))
+        
+        # ===========================================
+        # 数据库配置 - Database Configuration
+        # ===========================================
+        # MySQL数据库配置
+        self.db_host = os.environ.get('DB_HOST', 'localhost')
+        self.db_port = int(os.environ.get('DB_PORT', '3306'))
+        self.db_username = os.environ.get('DB_USERNAME', 'root')
+        self.db_password = os.environ.get('DB_PASSWORD', '')
+        self.db_name = os.environ.get('DB_NAME', 'virtual_human_chat')
+        self.db_charset = os.environ.get('DB_CHARSET', 'utf8mb4')
+        
+        # 数据库连接池配置
+        self.db_pool_size = int(os.environ.get('DB_POOL_SIZE', '5'))
+        self.db_pool_timeout = int(os.environ.get('DB_POOL_TIMEOUT', '30'))
+        self.db_pool_recycle = int(os.environ.get('DB_POOL_RECYCLE', '3600'))
+        
+        # 是否启用数据库存储
+        self.enable_database_storage = os.environ.get('ENABLE_DATABASE_STORAGE', 'true').lower() == 'true'
         
         # 加载当前提供商的配置
         self._load_provider_config()

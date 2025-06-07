@@ -17,6 +17,11 @@ def create_app():
     # 启用CORS支持
     CORS(app)
     
+    # 初始化数据库管理器
+    from app.app_config import config
+    from app.config import init_db_manager
+    init_db_manager(config)
+    
     # 注册蓝图
     from app.routes import main
     app.register_blueprint(main)

@@ -7,6 +7,11 @@ let clock = new THREE.Clock();
 let isAnimating = false;
 let currentProviders = [];
 let isTyping = false;
+let isIdentityVerified = false;
+let userIdentity = null;
+let chatTerminated = false;
+let chatCount = 0;
+let chatLimit = 100;
 
 // ================== 3D场景初始化 ==================
 function init() {
@@ -168,6 +173,18 @@ function onWindowResize() {
 }
 
 function onKeyDown(event) {
+    // 检查是否在输入框中输入，如果是则不处理快捷键
+    const activeElement = document.activeElement;
+    const isInputFocused = activeElement && (
+        activeElement.tagName === 'INPUT' || 
+        activeElement.tagName === 'TEXTAREA' || 
+        activeElement.contentEditable === 'true'
+    );
+    
+    if (isInputFocused) {
+        return; // 输入框有焦点时不处理快捷键
+    }
+    
     switch (event.code) {
         case 'KeyR':
             // R键重置视角
@@ -431,6 +448,92 @@ function initChat() {
             sendMessage();
         }
     });
+    
+    // 检查身份验证状态
+    checkIdentityStatus();
+}
+
+async function checkIdentityStatus() {
+    try {
+        const response = await fetch('/api/identity_status');
+        const data = await response.json();
+        
+        if (data.success) {
+            isIdentityVerified = data.is_identity_verified;
+            userIdentity = data.user_identity;
+            chatTerminated = data.chat_terminated;
+            chatCount = data.chat_count;
+            chatLimit = data.chat_limit;
+            
+            // 更新UI状态
+            updateChatUI();
+            
+            // 如果需要身份验证且未验证，显示身份验证提示
+            if (data.enable_identity_verification && !isIdentityVerified) {
+                showIdentityPrompt(data.identity_prompt);
+            }
+            
+            // 如果聊天已终止，显示终止提示
+            if (chatTerminated) {
+                showChatTerminatedMessage();
+            }
+        }
+    } catch (error) {
+        console.error('检查身份状态失败:', error);
+    }
+}
+
+function updateChatUI() {
+    const chatInput = document.getElementById('chat-input');
+    const sendButton = document.getElementById('send-button');
+    
+    if (chatTerminated) {
+        chatInput.disabled = true;
+        sendButton.disabled = true;
+        chatInput.placeholder = '聊天已达到上限，请清空历史后继续...';
+    } else if (!isIdentityVerified) {
+        chatInput.disabled = false;
+        sendButton.disabled = false;
+        chatInput.placeholder = '请输入您的姓名或昵称进行身份确认...';
+    } else {
+        chatInput.disabled = false;
+        sendButton.disabled = false;
+        chatInput.placeholder = `和 ${userIdentity || '我'} 聊天中...`;
+    }
+    
+    // 更新聊天计数显示
+    updateChatCounter();
+}
+
+function updateChatCounter() {
+    // 在聊天标题中显示计数
+    const chatTitle = document.querySelector('.chat-title span:last-child');
+    if (chatTitle && chatLimit > 0) {
+        const originalText = chatTitle.textContent.split(' (')[0]; // 移除之前的计数
+        chatTitle.textContent = `${originalText} (${chatCount}/${chatLimit})`;
+    }
+}
+
+function showIdentityPrompt(prompt) {
+    const messagesContainer = document.getElementById('chat-messages');
+    messagesContainer.innerHTML = `
+        <div class="message assistant">
+            <div>${prompt}</div>
+            <div class="message-time">${formatTime(new Date())}</div>
+        </div>
+    `;
+}
+
+function showChatTerminatedMessage() {
+    const messagesContainer = document.getElementById('chat-messages');
+    const terminatedMessage = document.createElement('div');
+    terminatedMessage.className = 'message assistant';
+    terminatedMessage.innerHTML = `
+        <div>聊天已达到存储上限，请清空历史后继续对话。</div>
+        <div class="message-time">${formatTime(new Date())}</div>
+    `;
+    messagesContainer.appendChild(terminatedMessage);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 function setInitialTime() {
@@ -445,6 +548,12 @@ async function sendMessage() {
     const message = chatInput.value.trim();
     
     if (!message || isTyping) return;
+    
+    // 检查聊天是否已终止
+    if (chatTerminated) {
+        showWarning('聊天已达到存储上限，请清空历史后继续对话。', '无法发送');
+        return;
+    }
     
     // 添加用户消息到界面
     addMessage(message, 'user');
@@ -467,6 +576,30 @@ async function sendMessage() {
         
         if (data.success) {
             addMessage(data.response, 'assistant');
+            
+            // 检查是否刚完成身份验证（通过检查欢迎消息）
+            if (!isIdentityVerified && (data.response.includes('很高兴认识') || data.response.includes('很开心认识') || data.response.includes('好好听的名字'))) {
+                isIdentityVerified = true;
+                userIdentity = message;
+                updateChatUI();
+                // 重新获取身份状态以同步服务器状态
+                setTimeout(checkIdentityStatus, 500);
+                
+                // 身份验证成功后才开始计数
+                chatCount = 1;
+            } else if (isIdentityVerified) {
+                // 只有身份验证完成后才计数普通聊天
+                chatCount++;
+            }
+            // 如果未验证身份且不是欢迎消息，说明是身份验证失败，不计数
+            
+            updateChatCounter();
+            
+            // 检查是否达到聊天上限
+            if (isIdentityVerified && chatCount >= chatLimit) {
+                chatTerminated = true;
+                updateChatUI();
+            }
         } else {
             addMessage(data.error || '抱歉，我现在有点困惑 😅', 'assistant');
         }
@@ -651,20 +784,30 @@ async function performClearHistory() {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-            }
+            },
+            body: JSON.stringify({
+                end_reason: 'user_clear'
+            })
         });
         
         const data = await response.json();
         
         if (data.success) {
-            // 清空聊天界面
-            const messagesContainer = document.getElementById('chat-messages');
-            messagesContainer.innerHTML = `
-                <div class="message assistant">
-                    <div>聊天历史已清空，我们重新开始吧！😊</div>
-                    <div class="message-time">${formatTime(new Date())}</div>
-                </div>
-            `;
+            // 重置所有状态
+            isIdentityVerified = false;
+            userIdentity = null;
+            chatTerminated = false;
+            chatCount = 0;
+            
+            // 清除会话标记，下次刷新会重新检测
+            sessionStorage.removeItem('virtual_human_session');
+            
+            // 更新UI状态
+            updateChatUI();
+            
+            // 重新检查身份验证状态
+            await checkIdentityStatus();
+            
             showSuccess('聊天历史已清空', '操作完成');
         } else {
             showError(data.error, '清空失败');
@@ -679,8 +822,124 @@ async function performClearHistory() {
 // 初始化应用
 init();
 
+// 检测浏览器刷新并自动清空历史
+async function handlePageRefresh() {
+    const sessionKey = 'virtual_human_session';
+    const currentSession = sessionStorage.getItem(sessionKey);
+    
+    if (!currentSession) {
+        // 检查服务器端是否有聊天记录
+                try {
+            const response = await fetch('/api/identity_status');
+            const status = await response.json();
+            
+            // 如果服务器有聊天记录或身份验证状态，说明是刷新页面
+            if (status.success && (status.is_identity_verified || status.chat_count > 0)) {
+                // 清空服务器端的历史
+                try {
+                    const clearResponse = await fetch('/api/clear_history', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            end_reason: 'browser_refresh'
+                        })
+                    });
+                    
+                    const clearResult = await clearResponse.json();
+                    if (clearResult.success) {
+                        console.log('检测到页面刷新，已自动清空聊天历史');
+                        // 显示提示信息
+                        if (typeof showInfo === 'function') {
+                            showInfo('检测到页面刷新，聊天历史已自动清空', '新会话开始');
+                        }
+                    } else {
+                        console.error('清空历史失败:', clearResult.error);
+                    }
+                } catch (clearError) {
+                    console.error('清空历史请求失败:', clearError);
+                }
+            }
+        } catch (error) {
+            console.error('检查状态失败:', error);
+        }
+        
+        // 标记当前会话
+        sessionStorage.setItem(sessionKey, 'active');
+    }
+}
+
+// 获取地理位置信息
+async function getLocationInfo() {
+    return new Promise((resolve) => {
+        if (navigator.geolocation) {
+            const options = {
+                timeout: 5000,
+                maximumAge: 300000, // 5分钟缓存
+                enableHighAccuracy: false
+            };
+            
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    try {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        
+                        // 可选：调用地理编码API获取城市信息
+                        // 这里只返回坐标，避免依赖外部服务
+                        resolve(`${lat.toFixed(4)},${lon.toFixed(4)}`);
+                    } catch (error) {
+                        console.warn('地理位置信息处理失败:', error);
+                        resolve(null);
+                    }
+                },
+                (error) => {
+                    console.warn('无法获取地理位置:', error.message);
+                    resolve(null);
+                },
+                options
+            );
+        } else {
+            console.warn('浏览器不支持地理位置API');
+            resolve(null);
+        }
+    });
+}
+
+// 设置会话信息
+async function setSessionInfo() {
+    try {
+        const locationInfo = await getLocationInfo();
+        
+        const response = await fetch('/api/set_session_info', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                location_info: locationInfo
+            })
+        });
+        
+        const data = await response.json();
+        if (data.success) {
+            console.log('会话信息已设置:', data.session_info);
+        }
+    } catch (error) {
+        console.warn('设置会话信息失败:', error);
+    }
+}
+
 // 页面加载完成后初始化聊天功能
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
+    // 首先处理页面刷新逻辑
+    await handlePageRefresh();
+    
+    // 设置会话信息
+    await setSessionInfo();
+    
+    // 然后初始化聊天功能
     initChat();
     loadProviders();
     setInitialTime();
