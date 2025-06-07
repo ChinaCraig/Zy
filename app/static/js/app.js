@@ -243,6 +243,39 @@ function toggleAnimation() {
     }
 }
 
+// ================== 虚拟人动作处理 ==================
+function handleVirtualHumanAction(actionData) {
+    if (!actionData) {
+        console.warn('没有动作数据');
+        return;
+    }
+    
+    console.log('处理虚拟人动作:', actionData);
+    
+    const { action, action_code } = actionData;
+    
+    switch(action) {
+        case 'spin':
+            // 开始转圈动画
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 2.0;
+            console.log('虚拟人开始转圈');
+            showInfo('虚拟人开始转圈', '说"停下"可以停止');
+            break;
+            
+        case 'stop':
+            // 停止转圈动画
+            controls.autoRotate = false;
+            console.log('虚拟人停止转圈');
+            showInfo('虚拟人停止转圈', '说"转圈"可以重新开始');
+            break;
+            
+        default:
+            console.log(`未知的动作类型: ${action}`);
+            break;
+    }
+}
+
 function animateCameraTo(targetPosition, targetLookAt) {
     const startPosition = camera.position.clone();
     const startTarget = controls.target.clone();
@@ -579,6 +612,11 @@ async function sendMessage() {
         
         if (data.success) {
             addMessage(data.response, 'assistant');
+            
+            // 处理虚拟人动作（如果有）
+            if (data.intent_detection && data.intent_data && data.intent_data.action) {
+                handleVirtualHumanAction(data.intent_data.action);
+            }
             
             // 检查是否刚完成身份验证（通过检查欢迎消息）
             if (!isIdentityVerified && (data.response.includes('很高兴认识') || data.response.includes('很开心认识') || data.response.includes('好好听的名字'))) {

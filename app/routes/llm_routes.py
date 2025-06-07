@@ -4,6 +4,7 @@
 from flask import Blueprint, request, jsonify
 from app.app_config import config
 from app.models import ai_manager
+from app.service.llm import intent_handler_manager, intent_sync_adapter
 
 llm_bp = Blueprint('llm', __name__, url_prefix='/llm')
 
@@ -37,7 +38,56 @@ def chat():
                 ip_address=ip_address
             )
         
-        # 使用同步版本
+        # 检查是否启用意图识别（默认启用，可通过请求参数关闭）
+        enable_intent_detection = data.get('enable_intent_detection', True)
+        
+        if enable_intent_detection:
+            # 使用意图识别处理消息
+            # 准备上下文
+            context = {
+                "ai_manager": ai_manager,
+                "config": config,
+                "session_info": ai_manager.session_info,
+                "conversation_history": ai_manager.conversation_history[-10:]  # 最近10条对话
+            }
+            
+            # 是否并行处理多个意图
+            parallel_processing = data.get('parallel_intents', True)
+            
+            # 调用意图处理
+            print(f"开始处理意图，消息: {user_message}")
+            intent_result = intent_sync_adapter.process_message_sync(
+                intent_handler_manager,
+                user_message,
+                context,
+                parallel_processing
+            )
+            print(f"意图处理结果: {intent_result}")
+            
+            # 如果意图处理成功，使用意图处理的结果
+            if intent_result.get('success'):
+                response = intent_result.get('response', '')
+                
+                # 将意图识别的响应添加到对话历史
+                if response:
+                    ai_manager.add_to_history('user', user_message)
+                    ai_manager.add_to_history('assistant', response)
+                
+                return jsonify({
+                    'success': True,
+                    'response': response,
+                    'provider': config.current_provider,
+                    'model': config.model,
+                    'virtual_human_name': config.virtual_human_name,
+                    'intent_detection': True,
+                    'intents': intent_result.get('intents', []),
+                    'intent_data': intent_result.get('data', {})
+                })
+            else:
+                # 意图处理失败，回退到普通聊天
+                print(f"意图处理失败，回退到普通聊天: {intent_result.get('error')}")
+        
+        # 使用原有的同步处理方式（默认行为）
         ai_response = ai_manager.get_response_sync(user_message)
         
         return jsonify({
@@ -45,7 +95,8 @@ def chat():
             'response': ai_response,
             'provider': config.current_provider,
             'model': config.model,
-            'virtual_human_name': config.virtual_human_name
+            'virtual_human_name': config.virtual_human_name,
+            'intent_detection': False
         })
         
     except Exception as e:
@@ -56,6 +107,55 @@ def chat():
             'success': False,
             'error': f'抱歉，我现在有点困惑 😅 请稍后再试试吧！'
         }), 500
+
+@llm_bp.route('/intent/detect', methods=['POST'])
+def detect_intent():
+    """单独的意图检测API"""
+    try:
+        data = request.get_json()
+        message = data.get('message', '').strip()
+        
+        if not message:
+            return jsonify({'error': '消息不能为空'}), 400
+        
+        # 获取对话历史作为上下文
+        context_history = data.get('context', [])
+        
+        # 检测意图
+        from app.service.llm import intent_detector
+        intents = intent_detector.detect_intents(message, context_history)
+        
+        # 格式化意图结果
+        intent_results = []
+        for intent in intents:
+            intent_results.append({
+                'type': intent.type.value,
+                'confidence': intent.confidence,
+                'params': intent.params
+            })
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'intents': intent_results
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@llm_bp.route('/intent/handlers', methods=['GET'])
+def list_intent_handlers():
+    """获取所有已注册的意图处理器"""
+    try:
+        handlers = intent_handler_manager.list_handlers()
+        
+        return jsonify({
+            'success': True,
+            'handlers': handlers
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @llm_bp.route('/providers', methods=['GET'])
 def get_providers():
