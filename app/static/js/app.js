@@ -455,7 +455,7 @@ function initChat() {
 
 async function checkIdentityStatus() {
     try {
-        const response = await fetch('/api/identity_status');
+        const response = await fetch('/llm/identity_status');
         const data = await response.json();
         
         if (data.success) {
@@ -464,6 +464,9 @@ async function checkIdentityStatus() {
             chatTerminated = data.chat_terminated;
             chatCount = data.chat_count;
             chatLimit = data.chat_limit;
+            
+            // 更新聊天状态跟踪
+            updateChatStatus(data);
             
             // 更新UI状态
             updateChatUI();
@@ -563,7 +566,7 @@ async function sendMessage() {
     showTyping();
     
     try {
-        const response = await fetch('/api/chat', {
+        const response = await fetch('/llm/chat', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -592,6 +595,13 @@ async function sendMessage() {
                 chatCount++;
             }
             // 如果未验证身份且不是欢迎消息，说明是身份验证失败，不计数
+            
+            // 更新聊天状态跟踪
+            updateChatStatus({
+                chat_count: chatCount,
+                user_identity: userIdentity,
+                is_identity_verified: isIdentityVerified
+            });
             
             updateChatCounter();
             
@@ -662,7 +672,7 @@ function formatTime(date) {
 // ================== 模型配置功能 ==================
 async function loadProviders() {
     try {
-        const response = await fetch('/api/providers');
+        const response = await fetch('/llm/providers');
         const data = await response.json();
         
         if (data.success) {
@@ -748,7 +758,7 @@ async function autoSwitchProvider() {
     }
     
     try {
-        const response = await fetch('/api/switch_provider', {
+        const response = await fetch('/llm/switch_provider', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -769,8 +779,6 @@ async function autoSwitchProvider() {
     }
 }
 
-
-
 async function clearHistory() {
     // 使用自定义确认对话框
     showConfirm('确定要清空聊天历史吗？', '清空确认', () => {
@@ -780,7 +788,7 @@ async function clearHistory() {
 
 async function performClearHistory() {
     try {
-        const response = await fetch('/api/clear_history', {
+        const response = await fetch('/llm/clear_history', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -829,15 +837,22 @@ async function handlePageRefresh() {
     
     if (!currentSession) {
         // 检查服务器端是否有聊天记录
-                try {
-            const response = await fetch('/api/identity_status');
+        try {
+            const response = await fetch('/llm/identity_status');
             const status = await response.json();
             
             // 如果服务器有聊天记录或身份验证状态，说明是刷新页面
             if (status.success && (status.is_identity_verified || status.chat_count > 0)) {
-                // 清空服务器端的历史
+                console.log('检测到页面刷新，准备归档并清空聊天历史');
+                console.log('当前状态:', {
+                    user_identity: status.user_identity,
+                    chat_count: status.chat_count,
+                    is_identity_verified: status.is_identity_verified
+                });
+                
+                // 清空服务器端的历史并归档
                 try {
-                    const clearResponse = await fetch('/api/clear_history', {
+                    const clearResponse = await fetch('/llm/clear_history', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -849,10 +864,35 @@ async function handlePageRefresh() {
                     
                     const clearResult = await clearResponse.json();
                     if (clearResult.success) {
-                        console.log('检测到页面刷新，已自动清空聊天历史');
+                        console.log('页面刷新：聊天历史已归档并清空');
+                        
+                        // 重置前端状态和界面
+                        isIdentityVerified = false;
+                        userIdentity = null;
+                        chatTerminated = false;
+                        chatCount = 0;
+                        
+                        // 清空聊天消息界面
+                        const messagesContainer = document.getElementById('chat-messages');
+                        if (messagesContainer) {
+                            messagesContainer.innerHTML = '';
+                        }
+                        
+                        // 更新UI状态
+                        updateChatUI();
+                        
+                        // 重新检查身份状态以显示身份验证提示
+                        setTimeout(async () => {
+                            await checkIdentityStatus();
+                        }, 100);
+                        
                         // 显示提示信息
                         if (typeof showInfo === 'function') {
-                            showInfo('检测到页面刷新，聊天历史已自动清空', '新会话开始');
+                            if (status.is_identity_verified && status.chat_count > 0) {
+                                showInfo(`${status.user_identity} 的聊天记录已保存，新会话开始`, '页面刷新检测');
+                            } else {
+                                showInfo('检测到页面刷新，聊天历史已清空', '新会话开始');
+                            }
                         }
                     } else {
                         console.error('清空历史失败:', clearResult.error);
@@ -912,7 +952,7 @@ async function setSessionInfo() {
     try {
         const locationInfo = await getLocationInfo();
         
-        const response = await fetch('/api/set_session_info', {
+        const response = await fetch('/llm/set_session_info', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -943,4 +983,70 @@ document.addEventListener('DOMContentLoaded', async function() {
     initChat();
     loadProviders();
     setInitialTime();
+}); 
+
+// 全局变量来跟踪当前聊天状态
+let currentChatStatus = {
+    hasChat: false,
+    userIdentity: null,
+    chatCount: 0
+};
+
+// 标志变量防止重复保存
+let chatSaved = false;
+
+// 定期更新聊天状态（每次发送消息后）
+function updateChatStatus(status) {
+    currentChatStatus = {
+        hasChat: status.chat_count > 0,
+        userIdentity: status.user_identity,
+        chatCount: status.chat_count
+    };
+    // 重置保存标志，因为有新的聊天内容
+    chatSaved = false;
+}
+
+// 保存聊天记录的统一函数
+function saveChatHistory(reason) {
+    // 检查是否有聊天记录需要保存且未保存过
+    if (currentChatStatus.hasChat && currentChatStatus.userIdentity && !chatSaved) {
+        console.log(`页面即将${reason === 'browser_unload' ? '关闭/刷新' : '隐藏'}，保存聊天记录...`);
+        
+        // 标记为已保存，防止重复保存
+        chatSaved = true;
+        
+        // 使用 navigator.sendBeacon 保存数据（最可靠的方式）
+        const saveData = JSON.stringify({
+            end_reason: reason
+        });
+        
+        if (navigator.sendBeacon) {
+            const blob = new Blob([saveData], { type: 'application/json' });
+            navigator.sendBeacon('/llm/clear_history', blob);
+            console.log(`使用 sendBeacon 保存聊天记录 (${reason})`);
+        } else {
+            // 回退到同步 XMLHttpRequest（阻塞但可靠）
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/llm/clear_history', false); // 同步请求
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.send(saveData);
+                console.log(`使用同步 XHR 保存聊天记录 (${reason})`);
+            } catch (error) {
+                console.error('同步保存失败:', error);
+            }
+        }
+    } else if (chatSaved) {
+        console.log(`聊天记录已保存过，跳过重复保存 (${reason})`);
+    }
+}
+
+// 监听页面关闭或刷新事件，确保保存聊天记录
+window.addEventListener('beforeunload', function(event) {
+    saveChatHistory('browser_unload');
+});
+
+// 也监听 pagehide 事件（移动端更可靠）
+window.addEventListener('pagehide', function(event) {
+    saveChatHistory('page_hide');
 }); 

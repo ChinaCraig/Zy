@@ -23,7 +23,10 @@ def create_app():
     init_db_manager(config)
     
     # 注册蓝图
-    from app.routes import main
+    from app.routes import main, llm_bp, vision_bp, speech_bp
     app.register_blueprint(main)
+    app.register_blueprint(llm_bp)
+    app.register_blueprint(vision_bp)
+    app.register_blueprint(speech_bp)
     
     return app 
