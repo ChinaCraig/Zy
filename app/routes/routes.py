@@ -16,6 +16,8 @@ def serve_model(filename):
     """提供VRM模型文件"""
     return send_from_directory('static/models', filename)
 
+
+
 def get_client_ip():
     """获取客户端IP地址"""
     if request.environ.get('HTTP_X_FORWARDED_FOR'):

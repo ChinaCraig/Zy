@@ -69,6 +69,28 @@ body {
     pointer-events: auto;
 }
 
+.top-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mobile-bone-toggle {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    width: 35px;
+    height: 35px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background 0.3s;
+}
+
+.mobile-bone-toggle:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
 .top-bar h3 {
     margin: 0;
     font-size: 16px;
@@ -123,6 +145,538 @@ body {
 
 .top-bar button:hover {
     background: rgba(255, 255, 255, 0.3);
+}
+
+/* 左侧骨骼控制面板 */
+.bone-control-panel {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    bottom: 0;
+    width: 320px;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(15px);
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    pointer-events: auto;
+    transform: translateX(0);
+    transition: transform 0.3s ease;
+    border-radius: 0 20px 20px 0;
+    overflow: hidden;
+    z-index: 1001;
+}
+
+.panel-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px 20px;
+    font-weight: bold;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 0 20px 0 0;
+}
+
+.panel-header h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.panel-toggle {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: none;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.panel-toggle:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.panel-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #fafafa;
+    overflow: hidden;
+}
+
+/* 固定顶部控制区域 */
+.fixed-top-controls {
+    flex-shrink: 0;
+    padding: 15px 15px 10px 15px;
+    background: #fafafa;
+    border-bottom: 2px solid #e1e3e4;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    z-index: 10;
+}
+
+/* 滚动骨骼列表区域 */
+.scrollable-bone-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 15px;
+    background: #fafafa;
+}
+
+/* 固定底部控制区域 */
+.fixed-bottom-controls {
+    flex-shrink: 0;
+    padding: 10px 15px 15px 15px;
+    background: #fafafa;
+    border-top: 2px solid #e1e3e4;
+    box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+    z-index: 10;
+}
+
+.control-section {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.control-section label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: #333;
+    font-size: 13px;
+}
+
+.rotation-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.input-label {
+    font-size: 10px;
+    color: #666;
+    margin-bottom: 4px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.rotation-inputs input {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 12px;
+    text-align: center;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.rotation-inputs input:focus {
+    border-color: #667eea;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+
+
+.vrm-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #dee2e6;
+    font-size: 12px;
+}
+
+.status-indicator {
+    font-size: 14px;
+}
+
+.status-indicator.loading {
+    animation: pulse 1.5s infinite;
+}
+
+.status-indicator.ready {
+    color: #28a745;
+}
+
+.status-indicator.error {
+    color: #dc3545;
+}
+
+.status-text {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.bone-list {
+    /* 移除高度限制，让父容器控制滚动 */
+}
+
+.bone-item {
+    background: white;
+    border: 1px solid #e1e3e4;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: box-shadow 0.3s;
+}
+
+.bone-item:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.bone-header {
+    padding: 12px 15px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e1e3e4;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.bone-name {
+    font-weight: bold;
+    color: #333;
+    font-size: 13px;
+}
+
+.bone-controls {
+    display: flex;
+    gap: 6px;
+}
+
+.bone-btn {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.bone-btn.rotate {
+    background: #4CAF50;
+    color: white;
+}
+
+.bone-btn.rotate:hover {
+    background: #45a049;
+}
+
+.bone-btn.reset {
+    background: #ff9800;
+    color: white;
+}
+
+.bone-btn.reset:hover {
+    background: #f57c00;
+}
+
+.loading-bones {
+    text-align: center;
+    padding: 20px;
+    color: #666;
+    font-style: italic;
+}
+
+.bone-category {
+    margin-bottom: 15px;
+}
+
+.category-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px 6px 0 0;
+    margin-bottom: 0;
+}
+
+.category-header h4 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.category-bones {
+    border: 1px solid #e1e3e4;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    overflow: hidden;
+}
+
+.category-bones .bone-item {
+    margin-bottom: 0;
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid #e1e3e4;
+}
+
+.category-bones .bone-item:last-child {
+    border-bottom: none;
+}
+
+.category-bones .bone-item:hover {
+    background: #f8f9fa;
+    box-shadow: none;
+}
+
+/* 动作编排样式 */
+.action-sequence {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.sequence-instructions {
+    background: #e3f2fd;
+    border: 1px solid #bbdefb;
+    border-radius: 6px;
+    padding: 10px;
+    text-align: center;
+}
+
+.sequence-instructions p {
+    margin: 0;
+    font-size: 11px;
+    color: #1976d2;
+    line-height: 1.4;
+}
+
+.current-selection {
+    background: #f0f8ff;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.selection-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.selected-bone {
+    flex: 1;
+    font-weight: bold;
+    color: #333;
+    font-size: 12px;
+    padding: 8px;
+    background: white;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    text-align: center;
+}
+
+.add-to-sequence {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: #4CAF50;
+    color: white;
+    white-space: nowrap;
+}
+
+.add-to-sequence:hover:not(:disabled) {
+    background: #45a049;
+    transform: scale(1.05);
+}
+
+.add-to-sequence:disabled {
+    background: #ccc;
+    color: #999;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.bone-item.selected {
+    background: #e3f2fd !important;
+    border-color: #2196f3 !important;
+    box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.3) !important;
+}
+
+.bone-item.selected .bone-header {
+    background: #bbdefb !important;
+}
+
+.sequence-list {
+    min-height: 60px;
+    max-height: 120px;
+    overflow-y: auto;
+    border: 2px dashed #ddd;
+    border-radius: 6px;
+    padding: 8px;
+    background: #fafafa;
+}
+
+.sequence-placeholder {
+    text-align: center;
+    color: #999;
+    font-size: 12px;
+    font-style: italic;
+    padding: 20px 0;
+}
+
+.sequence-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    background: white;
+    border: 1px solid #e1e3e4;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.sequence-item-name {
+    flex: 1;
+    color: #333;
+}
+
+.sequence-item-remove {
+    background: #ff5252;
+    color: white;
+    border: none;
+    border-radius: 3px;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sequence-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.random-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    padding: 8px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px dashed #dee2e6;
+}
+
+.random-input-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.random-label {
+    font-size: 12px;
+    color: #6c757d;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+#random-count {
+    width: 60px;
+    padding: 4px 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 12px;
+    text-align: center;
+}
+
+#random-count:focus {
+    outline: none;
+    border-color: #80bdff;
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.execute-controls {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.sequence-btn {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.3s;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.sequence-btn.execute {
+    background: #4CAF50;
+    color: white;
+}
+
+.sequence-btn.execute:hover {
+    background: #45a049;
+}
+
+.sequence-btn.clear {
+    background: #ff9800;
+    color: white;
+}
+
+.sequence-btn.clear:hover {
+    background: #f57c00;
+}
+
+.sequence-btn.random {
+    background: #9c27b0;
+    color: white;
+    font-size: 11px;
+    padding: 8px 12px;
+}
+
+.sequence-btn.random:hover {
+    background: #7b1fa2;
+}
+
+.sequence-btn.reset-all {
+    background: #6c757d;
+    color: white;
+    font-size: 11px;
+}
+
+.sequence-btn.reset-all:hover {
+    background: #5a6268;
 }
 
 /* 右侧聊天容器 */
@@ -341,6 +895,44 @@ body {
     background: #999;
 }
 
+/* 骨骼列表滚动条样式 */
+.scrollable-bone-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.scrollable-bone-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.scrollable-bone-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.scrollable-bone-list::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
+/* 动作序列滚动条样式 */
+.sequence-list::-webkit-scrollbar {
+    width: 4px;
+}
+
+.sequence-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 2px;
+}
+
+.sequence-list::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 2px;
+}
+
+.sequence-list::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}
+
 /* 消息提示框样式 */
 .toast-container {
     position: fixed;
@@ -462,6 +1054,10 @@ body {
         font-size: 14px;
     }
 
+    .mobile-bone-toggle {
+        display: block !important;
+    }
+
     .model-controls {
         flex-wrap: wrap;
         gap: 8px;
@@ -472,6 +1068,67 @@ body {
         flex-direction: column;
         gap: 2px;
         text-align: center;
+    }
+
+    .bone-control-panel {
+        width: 280px;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+    }
+
+    .bone-control-panel.mobile-show {
+        transform: translateX(0);
+    }
+
+    /* 移动端固定区域优化 */
+    .fixed-top-controls {
+        padding: 10px;
+    }
+
+    .fixed-bottom-controls {
+        padding: 10px;
+    }
+
+    .sequence-list {
+        max-height: 100px;
+    }
+
+    .rotation-inputs {
+        gap: 8px;
+    }
+
+    .input-label {
+        font-size: 9px;
+    }
+
+    .random-actions {
+        flex-direction: column;
+        gap: 6px;
+        padding: 6px;
+    }
+
+    .random-input-group {
+        gap: 4px;
+    }
+
+    .random-label {
+        font-size: 10px;
+    }
+
+    #random-count {
+        width: 50px;
+        font-size: 11px;
+    }
+
+    .execute-controls {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .sequence-btn {
+        flex: none;
+        padding: 10px;
+        font-size: 11px;
     }
 
     .chat-sidebar {

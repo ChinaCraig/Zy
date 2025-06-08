@@ -13,6 +13,139 @@ let chatTerminated = false;
 let chatCount = 0;
 let chatLimit = 100;
 
+// ================== 骨骼控制系统 ==================
+let availableBones = [];
+let boneControlActive = false;
+let actionSequence = []; // 动作序列
+let selectedBone = null; // 当前选中的骨骼
+
+// ================== VRM模型配置 ==================
+const VRM_CONFIG = {
+    // 初始旋转角度（弧度）- 调整这里可以改变人物朝向
+    initialRotation: {
+        x: 0,
+        y: Math.PI, // Y轴旋转180度，让人物正面朝向用户
+        z: 0
+    }
+};
+
+// 骨骼中英文映射
+const boneNameMap = {
+    // 头部
+    'head': '头部',
+    'neck': '颈部', 
+    'leftEye': '左眼',
+    'rightEye': '右眼',
+    'jaw': '下颌',
+    
+    // 躯干
+    'hips': '臀部',
+    'spine': '脊柱',
+    'chest': '胸部',
+    'upperChest': '上胸部',
+    
+    // 左臂
+    'leftShoulder': '左肩',
+    'leftUpperArm': '左上臂',
+    'leftLowerArm': '左前臂',
+    'leftHand': '左手',
+    
+    // 右臂
+    'rightShoulder': '右肩',
+    'rightUpperArm': '右上臂', 
+    'rightLowerArm': '右前臂',
+    'rightHand': '右手',
+    
+    // 左腿
+    'leftUpperLeg': '左大腿',
+    'leftLowerLeg': '左小腿',
+    'leftFoot': '左脚',
+    'leftToes': '左脚趾',
+    
+    // 右腿
+    'rightUpperLeg': '右大腿',
+    'rightLowerLeg': '右小腿',
+    'rightFoot': '右脚',
+    'rightToes': '右脚趾',
+    
+    // 左手指 - 详细映射
+    'leftThumb1': '左拇指近端',
+    'leftThumb2': '左拇指中端',
+    'leftThumb3': '左拇指远端',
+    'leftThumbProximal': '左拇指近节',
+    'leftThumbIntermediate': '左拇指中节',
+    'leftThumbDistal': '左拇指末节',
+    
+    'leftIndex1': '左食指近端',
+    'leftIndex2': '左食指中端',
+    'leftIndex3': '左食指远端',
+    'leftIndexProximal': '左食指近节',
+    'leftIndexIntermediate': '左食指中节',
+    'leftIndexDistal': '左食指末节',
+    
+    'leftMiddle1': '左中指近端',
+    'leftMiddle2': '左中指中端',
+    'leftMiddle3': '左中指远端',
+    'leftMiddleProximal': '左中指近节',
+    'leftMiddleIntermediate': '左中指中节',
+    'leftMiddleDistal': '左中指末节',
+    
+    'leftRing1': '左无名指近端',
+    'leftRing2': '左无名指中端',
+    'leftRing3': '左无名指远端',
+    'leftRingProximal': '左无名指近节',
+    'leftRingIntermediate': '左无名指中节',
+    'leftRingDistal': '左无名指末节',
+    
+    'leftLittle1': '左小指近端',
+    'leftLittle2': '左小指中端',
+    'leftLittle3': '左小指远端',
+    'leftLittleProximal': '左小指近节',
+    'leftLittleIntermediate': '左小指中节',
+    'leftLittleDistal': '左小指末节',
+    
+    // 右手指 - 详细映射
+    'rightThumb1': '右拇指近端',
+    'rightThumb2': '右拇指中端',
+    'rightThumb3': '右拇指远端',
+    'rightThumbProximal': '右拇指近节',
+    'rightThumbIntermediate': '右拇指中节',
+    'rightThumbDistal': '右拇指末节',
+    
+    'rightIndex1': '右食指近端',
+    'rightIndex2': '右食指中端',
+    'rightIndex3': '右食指远端',
+    'rightIndexProximal': '右食指近节',
+    'rightIndexIntermediate': '右食指中节',
+    'rightIndexDistal': '右食指末节',
+    
+    'rightMiddle1': '右中指近端',
+    'rightMiddle2': '右中指中端',
+    'rightMiddle3': '右中指远端',
+    'rightMiddleProximal': '右中指近节',
+    'rightMiddleIntermediate': '右中指中节',
+    'rightMiddleDistal': '右中指末节',
+    
+    'rightRing1': '右无名指近端',
+    'rightRing2': '右无名指中端',
+    'rightRing3': '右无名指远端',
+    'rightRingProximal': '右无名指近节',
+    'rightRingIntermediate': '右无名指中节',
+    'rightRingDistal': '右无名指末节',
+    
+    'rightLittle1': '右小指近端',
+    'rightLittle2': '右小指中端',
+    'rightLittle3': '右小指远端',
+    'rightLittleProximal': '右小指近节',
+    'rightLittleIntermediate': '右小指中节',
+    'rightLittleDistal': '右小指末节'
+};
+
+// 获取骨骼中文名称
+function getChineseBoneName(englishName) {
+    return boneNameMap[englishName] || englishName;
+}
+
 // ================== 3D场景初始化 ==================
 function init() {
     // 创建场景
@@ -92,6 +225,7 @@ function loadVRM() {
     loader.load('/models/virtual-human.vrm', (gltf) => {
         THREE.VRM.from(gltf).then((vrm) => {
             vrmModel = vrm;
+            window.currentVRM = vrm; // 同时设置全局变量供其他功能使用
             scene.add(vrm.scene);
             
             // 隐藏加载提示
@@ -99,7 +233,12 @@ function loadVRM() {
             
             // 设置模型位置和旋转
             vrm.scene.position.set(0, 0, 0);
-            vrm.scene.rotation.set(0, 0, 0); // 确保模型正面朝向用户
+            // 使用配置中的旋转值，确保人物正面朝向用户
+            vrm.scene.rotation.set(
+                VRM_CONFIG.initialRotation.x,
+                VRM_CONFIG.initialRotation.y,
+                VRM_CONFIG.initialRotation.z
+            );
             
             // 获取模型的边界框，用于更好的相机设置
             const box = new THREE.Box3().setFromObject(vrm.scene);
@@ -131,6 +270,15 @@ function loadVRM() {
             console.log('VRM模型加载成功！');
             console.log('模型尺寸:', size);
             console.log('模型中心:', center);
+            
+            // 显示加载成功提示
+            showSuccess('VRM模型加载成功！', '模型已就绪');
+            
+            // 更新状态指示器
+            updateVRMStatus('ready', '✅', 'VRM模型已就绪');
+            
+            // 初始化骨骼控制系统
+            initBoneControl();
         });
     }, (progress) => {
         const percent = Math.round((progress.loaded / progress.total) * 100);
@@ -138,6 +286,9 @@ function loadVRM() {
     }, (error) => {
         console.error('VRM模型加载失败:', error);
         document.getElementById('loading').innerHTML = '<p>❌ 模型加载失败，请检查文件路径</p>';
+        
+        // 更新状态指示器
+        updateVRMStatus('error', '❌', 'VRM模型加载失败');
     });
 }
 
@@ -584,6 +735,14 @@ async function sendMessage() {
     const message = chatInput.value.trim();
     
     if (!message || isTyping) return;
+    
+    // 首先检查是否是骨骼控制指令
+    if (boneControlActive && processBoneCommand(message)) {
+        // 如果是骨骼控制指令，添加用户消息但不发送给AI
+        addMessage(message, 'user');
+        chatInput.value = '';
+        return;
+    }
     
     // 检查聊天是否已终止
     if (chatTerminated) {
@@ -1087,4 +1246,841 @@ window.addEventListener('beforeunload', function(event) {
 // 也监听 pagehide 事件（移动端更可靠）
 window.addEventListener('pagehide', function(event) {
     saveChatHistory('page_hide');
-}); 
+});
+
+// ================== 骨骼控制系统 ==================
+// 设置虚拟人初始姿势
+function setInitialPose() {
+    if (!vrmModel || !vrmModel.humanoid) {
+        console.warn('VRM模型不可用，无法设置初始姿势');
+        return;
+    }
+    
+    console.log('设置虚拟人初始姿势...');
+    
+    // 双手自然垂下的角度设置（模拟人自然站立姿势）
+    const naturalPose = {
+        // 左臂自然垂下
+        leftUpperArm: { x: 0, y: 0, z: Math.PI / 6 },     // 左上臂向下30度
+        leftLowerArm: { x: -Math.PI / 12, y: 0, z: 0 },   // 左前臂稍微弯曲15度
+        leftHand: { x: 0, y: 0, z: 0 },                   // 左手自然状态
+        
+        // 右臂自然垂下  
+        rightUpperArm: { x: 0, y: 0, z: -Math.PI / 6 },   // 右上臂向下30度
+        rightLowerArm: { x: -Math.PI / 12, y: 0, z: 0 },  // 右前臂稍微弯曲15度
+        rightHand: { x: 0, y: 0, z: 0 },                  // 右手自然状态
+        
+        // 肩膀自然状态
+        leftShoulder: { x: 0, y: 0, z: 0 },               // 左肩
+        rightShoulder: { x: 0, y: 0, z: 0 },              // 右肩
+    };
+    
+    // 应用初始姿势
+    let setPoseCount = 0;
+    for (const boneName in naturalPose) {
+        try {
+            const boneNode = vrmModel.humanoid.getBoneNode(boneName);
+            if (boneNode) {
+                const pose = naturalPose[boneName];
+                
+                // 保存原始旋转
+                if (!boneNode.userData) {
+                    boneNode.userData = {};
+                }
+                if (!boneNode.userData.originalRotation) {
+                    boneNode.userData.originalRotation = {
+                        x: boneNode.rotation.x,
+                        y: boneNode.rotation.y,
+                        z: boneNode.rotation.z
+                    };
+                }
+                
+                // 设置自然姿势
+                boneNode.rotation.set(pose.x, pose.y, pose.z);
+                setPoseCount++;
+                
+                console.log(`设置 ${boneName} 为自然姿势`);
+            }
+        } catch (error) {
+            console.warn(`设置骨骼 ${boneName} 姿势失败:`, error);
+        }
+    }
+    
+    console.log(`初始姿势设置完成，共设置 ${setPoseCount} 个骨骼`);
+}
+
+// 初始化骨骼控制系统
+function initBoneControl() {
+    if (!vrmModel || !vrmModel.humanoid) {
+        console.warn('VRM模型或humanoid不可用，无法初始化骨骼控制');
+        return;
+    }
+    
+    // 确保全局变量也设置正确
+    window.currentVRM = vrmModel;
+    
+    // 获取所有可用的骨骼名称
+    availableBones = [];
+    console.log('=== Three-VRM 版本: 0.6.11 ===');
+    console.log('=== 可用骨骼列表 ===');
+    
+    for (const name in vrmModel.humanoid.humanBones) {
+        console.log(name);  // 打印每个支持的骨骼名称
+        availableBones.push(name);
+    }
+    
+    console.log(`总计 ${availableBones.length} 个骨骼可用`);
+    
+    // 激活骨骼控制
+    boneControlActive = true;
+    
+    // 设置初始姿势（双手自然垂下）
+    setInitialPose();
+    
+    // 显示骨骼控制提示
+    showInfo(`骨骼控制系统已激活，共发现 ${availableBones.length} 个可控制骨骼`, '骨骼系统初始化');
+    
+    // 初始化骨骼控制面板
+    initBoneControlPanel();
+    
+    // 检查移动端并显示相应控件
+    checkMobileAndShowControls();
+    
+    // 为用户显示一些基本的骨骼控制指令示例
+    setTimeout(() => {
+        addMessage(`🦴 骨骼控制系统已激活！\n\n你可以使用以下基本指令控制我的骨骼：\n• "头向下" - 头部向下旋转30度\n• "头向左" / "头向右" - 头部左右旋转\n• "右上臂抬起" - 右上臂抬起60度\n• "右前臂弯曲" - 右前臂弯曲45度\n• "脊柱前倾" - 脊柱向前倾斜\n• "重置头部" / "重置右臂" - 重置特定部位\n• "重置" - 重置所有骨骼\n• "显示骨骼" - 查看所有可用骨骼\n\n💡 左侧有图形化骨骼控制面板可供使用！`, 'assistant');
+    }, 1000);
+}
+
+// 重置特定骨骼到初始位置
+function resetBone(boneName) {
+    if (!vrmModel || !vrmModel.humanoid || !boneControlActive) {
+        return false;
+    }
+    
+    try {
+        const boneNode = vrmModel.humanoid.getBoneNode(boneName);
+        if (!boneNode) {
+            console.warn(`骨骼 ${boneName} 不存在或不可用`);
+            return false;
+        }
+        
+        // 重置到原始旋转
+        if (boneNode.userData && boneNode.userData.originalRotation) {
+            boneNode.rotation.x = boneNode.userData.originalRotation.x;
+            boneNode.rotation.y = boneNode.userData.originalRotation.y;
+            boneNode.rotation.z = boneNode.userData.originalRotation.z;
+        } else {
+            // 如果没有保存原始旋转，重置为0
+            boneNode.rotation.set(0, 0, 0);
+        }
+        
+        console.log(`骨骼 ${boneName} 已重置`);
+        return true;
+    } catch (error) {
+        console.error(`重置骨骼 ${boneName} 失败:`, error);
+        return false;
+    }
+}
+
+// 重置所有骨骼到初始位置
+function resetAllBones() {
+    if (!vrmModel || !vrmModel.humanoid || !boneControlActive) {
+        return false;
+    }
+    
+    try {
+        let resetCount = 0;
+        for (const name in vrmModel.humanoid.humanBones) {
+            if (resetBone(name)) {
+                resetCount++;
+            }
+        }
+        console.log(`已重置 ${resetCount} 个骨骼`);
+        return true;
+    } catch (error) {
+        console.error('重置所有骨骼失败:', error);
+        return false;
+    }
+}
+
+// 控制特定骨骼的旋转
+function rotateBone(boneName, rotationX = 0, rotationY = 0, rotationZ = 0, duration = 1000) {
+    if (!vrmModel || !vrmModel.humanoid || !boneControlActive) {
+        return false;
+    }
+    
+    try {
+        // 使用正确的API获取骨骼节点  
+        const boneNode = vrmModel.humanoid.getBoneNode(boneName);
+        if (!boneNode) {
+            console.warn(`骨骼 ${boneName} 不存在或不可用`);
+            return false;
+        }
+        
+        // 保存原始旋转（如果还没保存的话）
+        if (!boneNode.userData) {
+            boneNode.userData = {};
+        }
+        if (!boneNode.userData.originalRotation) {
+            boneNode.userData.originalRotation = {
+                x: boneNode.rotation.x,
+                y: boneNode.rotation.y,
+                z: boneNode.rotation.z
+            };
+        }
+        
+        // 直接设置旋转（弧度）
+        boneNode.rotation.x = rotationX;
+        boneNode.rotation.y = rotationY;  
+        boneNode.rotation.z = rotationZ;
+        
+        console.log(`骨骼 ${boneName} 旋转设置: X=${rotationX.toFixed(2)}, Y=${rotationY.toFixed(2)}, Z=${rotationZ.toFixed(2)}`);
+        return true;
+    } catch (error) {
+        console.error(`控制骨骼 ${boneName} 失败:`, error);
+        return false;
+    }
+}
+
+// 解析聊天指令并执行骨骼动作
+function processBoneCommand(message) {
+    if (!boneControlActive) {
+        return false;
+    }
+    
+    const lowerMessage = message.toLowerCase().trim();
+    let actionPerformed = false;
+    
+    // 重置动作
+    if (lowerMessage.includes('重置') || lowerMessage.includes('复位') || lowerMessage.includes('初始')) {
+        if (resetAllBones()) {
+            actionPerformed = true;
+            setTimeout(() => {
+                addMessage('✅ 所有骨骼已重置到初始位置', 'assistant');
+            }, 100);
+        }
+    }
+    
+    // 头部简单旋转
+    else if (lowerMessage.includes('头向下') || lowerMessage.includes('低头')) {
+        if (rotateBone('head', Math.PI / 6, 0, 0)) { // 30度
+            actionPerformed = true;
+            addMessage('✅ 头部向下旋转30度', 'assistant');
+        }
+    }
+    else if (lowerMessage.includes('头向左') || lowerMessage.includes('头左转')) {
+        if (rotateBone('head', 0, -Math.PI / 6, 0)) { // -30度
+            actionPerformed = true;
+            addMessage('✅ 头部向左旋转30度', 'assistant');
+        }
+    }
+    else if (lowerMessage.includes('头向右') || lowerMessage.includes('头右转')) {
+        if (rotateBone('head', 0, Math.PI / 6, 0)) { // 30度
+            actionPerformed = true;
+            addMessage('✅ 头部向右旋转30度', 'assistant');
+        }
+    }
+    
+    // 右臂控制
+    else if (lowerMessage.includes('右上臂') && lowerMessage.includes('抬起')) {
+        if (rotateBone('rightUpperArm', 0, 0, -Math.PI / 3)) { // -60度
+            actionPerformed = true;
+            addMessage('✅ 右上臂已抬起60度', 'assistant');
+        }
+    }
+    else if (lowerMessage.includes('左上臂') && lowerMessage.includes('抬起')) {
+        if (rotateBone('leftUpperArm', 0, 0, Math.PI / 3)) { // 60度
+            actionPerformed = true;
+            addMessage('✅ 左上臂已抬起60度', 'assistant');
+        }
+    }
+    
+    // 前臂控制
+    else if (lowerMessage.includes('右前臂') && lowerMessage.includes('弯曲')) {
+        if (rotateBone('rightLowerArm', -Math.PI / 4, 0, 0)) { // -45度
+            actionPerformed = true;
+            addMessage('✅ 右前臂已弯曲45度', 'assistant');
+        }
+    }
+    else if (lowerMessage.includes('左前臂') && lowerMessage.includes('弯曲')) {
+        if (rotateBone('leftLowerArm', -Math.PI / 4, 0, 0)) { // -45度
+            actionPerformed = true;
+            addMessage('✅ 左前臂已弯曲45度', 'assistant');
+        }
+    }
+    
+    // 脊柱控制
+    else if (lowerMessage.includes('脊柱') && lowerMessage.includes('前倾')) {
+        if (rotateBone('spine', Math.PI / 6, 0, 0)) { // 30度
+            actionPerformed = true;
+            addMessage('✅ 脊柱向前倾斜30度', 'assistant');
+        }
+    }
+    
+    // 重置特定骨骼
+    else if (lowerMessage.includes('重置头部')) {
+        if (resetBone('head')) {
+            actionPerformed = true;
+            addMessage('✅ 头部已重置', 'assistant');
+        }
+    }
+    else if (lowerMessage.includes('重置右臂')) {
+        if (resetBone('rightUpperArm') && resetBone('rightLowerArm')) {
+            actionPerformed = true;
+            addMessage('✅ 右臂已重置', 'assistant');
+        }
+    }
+    else if (lowerMessage.includes('重置左臂')) {
+        if (resetBone('leftUpperArm') && resetBone('leftLowerArm')) {
+            actionPerformed = true;
+            addMessage('✅ 左臂已重置', 'assistant');
+        }
+    }
+    
+    // 显示可用骨骼
+    else if (lowerMessage.includes('显示骨骼') || lowerMessage.includes('骨骼列表') || lowerMessage.includes('有哪些骨骼')) {
+        actionPerformed = true;
+        const boneList = availableBones.join('、');
+        addMessage(`🦴 我当前有 ${availableBones.length} 个可控制的骨骼：\n\n${boneList}\n\n你可以尝试以下指令：\n• "头向下" - 头部向下30度\n• "右上臂抬起" - 右上臂抬起60度\n• "右前臂弯曲" - 右前臂弯曲45度\n• "重置头部" - 重置头部位置\n• "重置" - 重置所有骨骼`, 'assistant');
+    }
+    
+    return actionPerformed;
+}
+
+// 修改原有的 sendMessage 函数，添加骨骼控制检查
+const originalSendMessage = sendMessage;
+window.sendMessage = async function() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    // 首先检查是否是骨骼控制指令
+    if (boneControlActive && processBoneCommand(message)) {
+        // 如果是骨骼控制指令，添加用户消息但不发送给AI
+        addMessage(message, 'user');
+        input.value = '';
+        return;
+    }
+    
+    // 否则执行原有的发送逻辑
+    return originalSendMessage();
+};
+
+// ================== 骨骼控制面板 ==================
+// 初始化骨骼控制面板
+function initBoneControlPanel() {
+    const panel = document.getElementById('bone-control-panel');
+    if (panel) {
+        panel.style.display = 'flex';
+        console.log('骨骼控制面板已显示');
+    } else {
+        console.error('找不到骨骼控制面板元素');
+    }
+    
+    // 创建骨骼列表
+    createBoneList();
+    
+    // 初始化选择显示
+    updateSelectionDisplay();
+}
+
+// 创建骨骼列表UI
+function createBoneList() {
+    const boneListContainer = document.getElementById('bone-list-panel');
+    if (!boneListContainer || !availableBones.length) {
+        return;
+    }
+    
+    boneListContainer.innerHTML = '';
+    
+    // 按类别分组骨骼
+    const boneCategories = {
+        '头部区域': ['head', 'neck', 'leftEye', 'rightEye', 'jaw'],
+        '躯干区域': ['hips', 'spine', 'chest', 'upperChest'],
+        '左臂区域': ['leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand'],
+        '右臂区域': ['rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand'],
+        '左腿区域': ['leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'leftToes'],
+        '右腿区域': ['rightUpperLeg', 'rightLowerLeg', 'rightFoot', 'rightToes'],
+        '左手指区域': availableBones.filter(bone => bone.startsWith('left') && (bone.includes('Thumb') || bone.includes('Index') || bone.includes('Middle') || bone.includes('Ring') || bone.includes('Little'))),
+        '右手指区域': availableBones.filter(bone => bone.startsWith('right') && (bone.includes('Thumb') || bone.includes('Index') || bone.includes('Middle') || bone.includes('Ring') || bone.includes('Little')))
+    };
+    
+    Object.entries(boneCategories).forEach(([category, bones]) => {
+        const availableBonesInCategory = bones.filter(bone => availableBones.includes(bone));
+        
+        if (availableBonesInCategory.length > 0) {
+            // 创建分类标题
+            const categoryElement = document.createElement('div');
+            categoryElement.className = 'bone-category';
+            categoryElement.innerHTML = `
+                <div class="category-header">
+                    <h4>${category} (${availableBonesInCategory.length})</h4>
+                </div>
+                <div class="category-bones"></div>
+            `;
+            
+            const categoryBones = categoryElement.querySelector('.category-bones');
+            
+            // 为每个骨骼创建控制项
+            availableBonesInCategory.forEach(boneName => {
+                const boneItem = createBoneItem(boneName);
+                categoryBones.appendChild(boneItem);
+            });
+            
+            boneListContainer.appendChild(categoryElement);
+        }
+    });
+    
+    // 添加未分类的骨骼
+    const uncategorizedBones = availableBones.filter(bone => 
+        !Object.values(boneCategories).flat().includes(bone)
+    );
+    
+    if (uncategorizedBones.length > 0) {
+        const categoryElement = document.createElement('div');
+        categoryElement.className = 'bone-category';
+        categoryElement.innerHTML = `
+            <div class="category-header">
+                <h4>其他区域 (${uncategorizedBones.length})</h4>
+            </div>
+            <div class="category-bones"></div>
+        `;
+        
+        const categoryBones = categoryElement.querySelector('.category-bones');
+        uncategorizedBones.forEach(boneName => {
+            const boneItem = createBoneItem(boneName);
+            categoryBones.appendChild(boneItem);
+        });
+        
+        boneListContainer.appendChild(categoryElement);
+    }
+}
+
+// 创建单个骨骼控制项
+function createBoneItem(boneName) {
+    const chineseName = getChineseBoneName(boneName);
+    const boneItem = document.createElement('div');
+    boneItem.className = 'bone-item';
+    boneItem.dataset.boneName = boneName;
+    boneItem.innerHTML = `
+        <div class="bone-header" onclick="selectBone('${boneName}')">
+            <span class="bone-name" title="${boneName}">${chineseName}</span>
+            <div class="bone-controls" onclick="event.stopPropagation()">
+                <button class="bone-btn rotate" onclick="rotateBoneFromPanel('${boneName}')">旋转</button>
+                <button class="bone-btn reset" onclick="resetBoneFromPanel('${boneName}')">重置</button>
+            </div>
+        </div>
+    `;
+    return boneItem;
+}
+
+// 从面板旋转骨骼
+function rotateBoneFromPanel(boneName) {
+    const rotX = parseFloat(document.getElementById('rotate-x').value) || 0;
+    const rotY = parseFloat(document.getElementById('rotate-y').value) || 0;
+    const rotZ = parseFloat(document.getElementById('rotate-z').value) || 0;
+    
+    // 转换为弧度
+    const radX = (rotX * Math.PI) / 180;
+    const radY = (rotY * Math.PI) / 180;
+    const radZ = (rotZ * Math.PI) / 180;
+    
+    const chineseName = getChineseBoneName(boneName);
+    
+    if (rotateBone(boneName, radX, radY, radZ)) {
+        showInfo(`${chineseName} 已旋转: X=${rotX}°, Y=${rotY}°, Z=${rotZ}°`, '骨骼控制');
+    } else {
+        showError(`无法旋转 ${chineseName}`, '控制失败');
+    }
+}
+
+// 从面板重置骨骼
+function resetBoneFromPanel(boneName) {
+    const chineseName = getChineseBoneName(boneName);
+    
+    if (resetBone(boneName)) {
+        showInfo(`${chineseName} 已重置`, '骨骼重置');
+    } else {
+        showError(`无法重置 ${chineseName}`, '重置失败');
+    }
+}
+
+// 切换面板显示/隐藏
+function toggleBonePanel() {
+    const panel = document.getElementById('bone-control-panel');
+    const content = document.getElementById('panel-content');
+    const toggle = document.querySelector('.panel-toggle');
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        toggle.textContent = '−';
+        panel.style.width = '320px';
+    } else {
+        content.style.display = 'none';
+        toggle.textContent = '+';
+        panel.style.width = '60px';
+    }
+}
+
+// 移动端切换骨骼面板
+function toggleMobileBonePanel() {
+    const panel = document.getElementById('bone-control-panel');
+    if (panel) {
+        panel.classList.toggle('mobile-show');
+    }
+}
+
+// 检查是否为移动设备并显示相应控件
+function checkMobileAndShowControls() {
+    const isMobile = window.innerWidth <= 768;
+    const mobileToggle = document.querySelector('.mobile-bone-toggle');
+    
+    if (mobileToggle) {
+        mobileToggle.style.display = isMobile ? 'block' : 'none';
+    }
+}
+
+// 监听窗口大小变化
+window.addEventListener('resize', checkMobileAndShowControls);
+
+// ================== 动作编排系统 ==================
+
+// 选中骨骼
+function selectBone(boneName) {
+    // 移除之前的选中状态
+    document.querySelectorAll('.bone-item.selected').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    // 设置新的选中状态
+    const boneItem = document.querySelector(`[data-bone-name="${boneName}"]`);
+    if (boneItem) {
+        boneItem.classList.add('selected');
+    }
+    
+    selectedBone = boneName;
+    updateSelectionDisplay();
+    
+    const chineseName = getChineseBoneName(boneName);
+    showInfo(`已选中: ${chineseName}`, '骨骼选择');
+}
+
+// 更新选中显示
+function updateSelectionDisplay() {
+    const selectedBoneSpan = document.getElementById('selected-bone');
+    const addButton = document.getElementById('add-to-sequence');
+    
+    if (selectedBone) {
+        const chineseName = getChineseBoneName(selectedBone);
+        selectedBoneSpan.textContent = `已选中: ${chineseName}`;
+        selectedBoneSpan.style.color = '#2196f3';
+        addButton.disabled = false;
+    } else {
+        selectedBoneSpan.textContent = '未选中骨骼';
+        selectedBoneSpan.style.color = '#999';
+        addButton.disabled = true;
+    }
+}
+
+// 添加当前选中的骨骼和角度到序列
+function addCurrentSelectionToSequence() {
+    if (!selectedBone) {
+        showWarning('请先选中一个骨骼', '动作编排');
+        return;
+    }
+    
+    const rotX = parseFloat(document.getElementById('rotate-x').value) || 0;
+    const rotY = parseFloat(document.getElementById('rotate-y').value) || 0;
+    const rotZ = parseFloat(document.getElementById('rotate-z').value) || 0;
+    
+    const chineseName = getChineseBoneName(selectedBone);
+    
+    actionSequence.push({
+        id: Date.now(),
+        boneName: selectedBone,
+        chineseName: chineseName,
+        rotationX: rotX,
+        rotationY: rotY,
+        rotationZ: rotZ
+    });
+    
+    updateSequenceDisplay();
+    showInfo(`已添加: ${chineseName} (X:${rotX}°, Y:${rotY}°, Z:${rotZ}°)`, '动作编排');
+}
+
+// 更新序列显示
+function updateSequenceDisplay() {
+    const sequenceList = document.getElementById('sequence-list');
+    if (!sequenceList) return;
+    
+    if (actionSequence.length === 0) {
+        sequenceList.innerHTML = '<div class="sequence-placeholder">选中骨骼并设置角度，然后点击"添加到序列"</div>';
+        return;
+    }
+    
+    sequenceList.innerHTML = '';
+    actionSequence.forEach((item, index) => {
+        const sequenceItem = document.createElement('div');
+        sequenceItem.className = 'sequence-item';
+        sequenceItem.innerHTML = `
+            <span class="sequence-item-name">${index + 1}. ${item.chineseName} (X:${item.rotationX}°, Y:${item.rotationY}°, Z:${item.rotationZ}°)</span>
+            <button class="sequence-item-remove" onclick="removeActionFromSequence(${item.id})">×</button>
+        `;
+        sequenceList.appendChild(sequenceItem);
+    });
+}
+
+// 从序列中移除动作
+function removeActionFromSequence(actionId) {
+    actionSequence = actionSequence.filter(item => item.id !== actionId);
+    updateSequenceDisplay();
+}
+
+// 清空动作序列
+function clearActionSequence() {
+    actionSequence = [];
+    updateSequenceDisplay();
+    showInfo('动作序列已清空', '动作编排');
+}
+
+// 生成随机动作
+function generateRandomActions() {
+    const countInput = document.getElementById('random-count');
+    const count = parseInt(countInput.value) || 3;
+    
+    if (count < 1 || count > 20) {
+        showWarning('随机动作数量应在1-20之间', '随机动作');
+        return;
+    }
+    
+    // 检查VRM模型是否已加载
+    if (!window.currentVRM) {
+        showWarning('VRM模型还在加载中，请稍等片刻后再试', '随机动作');
+        console.log('尝试获取随机动作时VRM模型尚未加载完成');
+        return;
+    }
+    
+    if (!window.currentVRM.humanoid) {
+        showWarning('VRM模型的humanoid数据未找到', '随机动作');
+        return;
+    }
+    
+    // 获取所有可用的骨骼名称
+    const allBones = getAllAvailableBones();
+    
+    console.log('可用骨骼数量:', allBones.length);
+    console.log('可用骨骼列表:', allBones);
+    
+    if (allBones.length === 0) {
+        showWarning(`没有可用的骨骼。VRM模型状态: ${window.currentVRM ? '已加载' : '未加载'}`, '随机动作');
+        return;
+    }
+    
+    // 随机选择指定数量的骨骼
+    const selectedBones = getRandomBones(allBones, count);
+    
+    // 为每个选中的骨骼生成随机角度并添加到序列
+    selectedBones.forEach(boneName => {
+        const randomAngles = generateRandomAngles();
+        const chineseName = getChineseBoneName(boneName);
+        
+        actionSequence.push({
+            id: Date.now() + Math.random(), // 确保唯一ID
+            boneName: boneName,
+            chineseName: chineseName,
+            rotationX: randomAngles.x,
+            rotationY: randomAngles.y,
+            rotationZ: randomAngles.z
+        });
+    });
+    
+    updateSequenceDisplay();
+    showSuccess(`已生成${selectedBones.length}个随机动作`, '随机动作');
+}
+
+// 检查VRM模型加载状态
+function checkVRMStatus() {
+    console.log('=== VRM模型状态检查 ===');
+    console.log('window.currentVRM:', window.currentVRM);
+    
+    if (window.currentVRM) {
+        console.log('VRM模型已加载');
+        console.log('humanoid对象:', window.currentVRM.humanoid);
+        
+        if (window.currentVRM.humanoid) {
+            console.log('humanBones对象:', window.currentVRM.humanoid.humanBones);
+            const boneCount = Object.keys(window.currentVRM.humanoid.humanBones || {}).length;
+            console.log('骨骼数量:', boneCount);
+        } else {
+            console.log('humanoid对象未找到');
+        }
+    } else {
+        console.log('VRM模型未加载');
+    }
+    console.log('======================');
+}
+
+// 获取所有可用的骨骼名称
+function getAllAvailableBones() {
+    if (!window.currentVRM || !window.currentVRM.humanoid) {
+        console.log('VRM模型或humanoid未加载');
+        checkVRMStatus(); // 调用状态检查
+        return [];
+    }
+    
+    const bones = [];
+    const humanBones = window.currentVRM.humanoid.humanBones;
+    
+    console.log('VRM humanBones对象:', humanBones);
+    
+    for (const name in humanBones) {
+        if (humanBones[name]) {
+            bones.push(name);
+            console.log(`找到骨骼: ${name}`, humanBones[name]);
+        }
+    }
+    
+    console.log(`总共找到 ${bones.length} 个可用骨骼`);
+    return bones;
+}
+
+// 随机选择指定数量的骨骼
+function getRandomBones(allBones, count) {
+    const shuffled = [...allBones].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, Math.min(count, allBones.length));
+}
+
+// 生成随机角度（合理范围内）
+function generateRandomAngles() {
+    // 为不同类型的动作生成合理的角度范围
+    const angleRanges = {
+        small: { min: -30, max: 30 },    // 小幅度动作
+        medium: { min: -60, max: 60 },   // 中等幅度动作
+        large: { min: -90, max: 90 }     // 大幅度动作
+    };
+    
+    // 随机选择动作幅度
+    const rangeTypes = ['small', 'medium', 'large'];
+    const randomRange = rangeTypes[Math.floor(Math.random() * rangeTypes.length)];
+    const range = angleRanges[randomRange];
+    
+    return {
+        x: Math.round(Math.random() * (range.max - range.min) + range.min),
+        y: Math.round(Math.random() * (range.max - range.min) + range.min),
+        z: Math.round(Math.random() * (range.max - range.min) + range.min)
+    };
+}
+
+// 执行动作序列
+async function executeActionSequence() {
+    if (actionSequence.length === 0) {
+        showWarning('请先添加动作到序列中', '动作编排');
+        return;
+    }
+    
+    showInfo(`开始执行 ${actionSequence.length} 个骨骼动作`, '动作编排');
+    
+    for (let i = 0; i < actionSequence.length; i++) {
+        const sequenceItem = actionSequence[i];
+        
+        // 高亮当前执行的动作
+        highlightCurrentAction(i);
+        
+        // 转换角度为弧度
+        const radX = (sequenceItem.rotationX * Math.PI) / 180;
+        const radY = (sequenceItem.rotationY * Math.PI) / 180;
+        const radZ = (sequenceItem.rotationZ * Math.PI) / 180;
+        
+        // 执行骨骼旋转
+        if (rotateBone(sequenceItem.boneName, radX, radY, radZ)) {
+            showInfo(`执行: ${sequenceItem.chineseName} 旋转`, '动作执行');
+        }
+        
+        // 动作间的间隔
+        if (i < actionSequence.length - 1) {
+            await sleep(800);
+        }
+    }
+    
+    // 清除高亮
+    clearActionHighlight();
+    showInfo('🎉 动作序列执行完成', '动作编排');
+}
+
+// 高亮当前执行的动作
+function highlightCurrentAction(index) {
+    const sequenceItems = document.querySelectorAll('.sequence-item');
+    sequenceItems.forEach((item, i) => {
+        if (i === index) {
+            item.style.background = '#e3f2fd';
+            item.style.borderColor = '#2196f3';
+        } else {
+            item.style.background = 'white';
+            item.style.borderColor = '#e1e3e4';
+        }
+    });
+}
+
+// 清除动作高亮
+function clearActionHighlight() {
+    const sequenceItems = document.querySelectorAll('.sequence-item');
+    sequenceItems.forEach(item => {
+        item.style.background = 'white';
+        item.style.borderColor = '#e1e3e4';
+    });
+}
+
+// 延时函数
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// 更新VRM状态指示器
+function updateVRMStatus(status, icon, text) {
+    const indicator = document.getElementById('status-indicator');
+    const statusText = document.getElementById('status-text');
+    
+    if (indicator && statusText) {
+        // 移除所有状态类
+        indicator.className = 'status-indicator';
+        // 添加新状态类
+        indicator.classList.add(status);
+        indicator.textContent = icon;
+        statusText.textContent = text;
+    }
+}
+
+// 切换人物朝向
+function flipModelDirection() {
+    if (!vrmModel) {
+        showWarning('VRM模型尚未加载', '朝向调整');
+        return;
+    }
+    
+    // 当前Y轴旋转值
+    const currentY = vrmModel.scene.rotation.y;
+    
+    // 切换朝向：如果接近0度，则转为180度；如果接近180度，则转为0度
+    let newY;
+    if (Math.abs(currentY) < Math.PI / 2) {
+        // 当前朝向接近0度，转为180度
+        newY = Math.PI;
+        showInfo('人物已转为正面朝向', '朝向调整');
+    } else {
+        // 当前朝向接近180度，转为0度
+        newY = 0;
+        showInfo('人物已转为背面朝向', '朝向调整');
+    }
+    
+    // 应用新的旋转
+    vrmModel.scene.rotation.y = newY;
+    
+    // 更新配置以记住用户的选择
+    VRM_CONFIG.initialRotation.y = newY;
+    
+    console.log(`人物朝向已调整为: ${(newY * 180 / Math.PI).toFixed(0)}度`);
+}
+
+console.log('骨骼控制系统已加载完成'); 

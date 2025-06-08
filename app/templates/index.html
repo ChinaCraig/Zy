@@ -21,7 +21,10 @@
     <div class="main-layout">
         <!-- 顶部栏 - 模型配置 -->
         <div class="top-bar">
-            <h3>🤖 AI虚拟人 - <span id="virtual-human-name">{{ virtual_human_name }}</span></h3>
+            <div class="top-left">
+                <button class="mobile-bone-toggle" onclick="toggleMobileBonePanel()" style="display: none;">🦴</button>
+                <h3>🤖 AI虚拟人 - <span id="virtual-human-name">{{ virtual_human_name }}</span></h3>
+            </div>
             <div class="model-controls">
                 <div class="control-group">
                     <span class="control-label">提供商:</span>
@@ -36,6 +39,81 @@
                     </select>
                 </div>
                 <button onclick="clearHistory()">清空</button>
+            </div>
+        </div>
+
+        <!-- 左侧骨骼控制面板 -->
+        <div class="bone-control-panel" id="bone-control-panel" style="display: none;">
+            <div class="panel-header">
+                <h3>🦴 骨骼控制</h3>
+                <button class="panel-toggle" onclick="toggleBonePanel()">−</button>
+            </div>
+            
+            <div class="panel-content" id="panel-content">
+                <!-- 固定顶部：角度控制区域 -->
+                <div class="fixed-top-controls">
+                    <div class="control-section">
+                        <label>🎯 当前选中骨骼的旋转角度 (度):</label>
+                        <div class="rotation-inputs">
+                            <div class="input-group">
+                                <label class="input-label">X轴 (俯仰)</label>
+                                <input type="number" id="rotate-x" placeholder="前后" title="X轴：前后俯仰旋转 (点头/抬头)" value="30" min="-180" max="180">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Y轴 (转向)</label>
+                                <input type="number" id="rotate-y" placeholder="左右" title="Y轴：左右转动旋转 (左右转头)" value="0" min="-180" max="180">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Z轴 (倾斜)</label>
+                                <input type="number" id="rotate-z" placeholder="倾斜" title="Z轴：侧向倾斜旋转 (左右倾斜)" value="0" min="-180" max="180">
+                            </div>
+                        </div>
+                    </div>
+
+
+                </div>
+
+                <!-- 中间滚动区域：骨骼列表 -->
+                <div class="scrollable-bone-list">
+                    <div class="bone-list" id="bone-list-panel">
+                        <div class="loading-bones">正在加载骨骼...</div>
+                    </div>
+                </div>
+
+                <!-- 固定底部：动作编排区域 -->
+                <div class="fixed-bottom-controls">
+                    <div class="control-section">
+                        <label>🎬 动作编排序列:</label>
+                        <div class="action-sequence">
+                            <div class="sequence-instructions">
+                                <p>📝 操作说明：1️⃣ 点击骨骼选中 → 2️⃣ 设置角度 → 3️⃣ 添加到序列 → 4️⃣ 执行序列</p>
+                            </div>
+                            <div class="current-selection" id="current-selection">
+                                <div class="selection-info">
+                                    <span class="selected-bone" id="selected-bone">未选中骨骼</span>
+                                    <button class="add-to-sequence" id="add-to-sequence" onclick="addCurrentSelectionToSequence()" disabled>➕ 添加到序列</button>
+                                </div>
+                            </div>
+                            <div class="sequence-list" id="sequence-list">
+                                <div class="sequence-placeholder">选中骨骼并设置角度，然后点击"添加到序列"</div>
+                            </div>
+                            <div class="sequence-controls">
+                                <div class="random-actions">
+                                    <div class="random-input-group">
+                                        <label class="random-label">随机动作数量:</label>
+                                        <input type="number" id="random-count" placeholder="数量" title="生成随机动作的数量" value="3" min="1" max="20">
+                                    </div>
+                                    <button class="sequence-btn random" onclick="generateRandomActions()">🎲 随机</button>
+                                </div>
+                                <div class="execute-controls">
+                                    <button class="sequence-btn execute" onclick="executeActionSequence()">🎬 执行</button>
+                                    <button class="sequence-btn clear" onclick="clearActionSequence()">🗑️ 清空序列</button>
+                                    <button class="sequence-btn reset-all" onclick="resetAllBones()">🔄 重置骨骼</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
